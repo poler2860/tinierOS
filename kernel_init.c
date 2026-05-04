@@ -1,8 +1,4 @@
 
-#ifndef NVALGRIND
-#include <valgrind/valgrind.h>
-#endif
-
 #include "bios.h"
 #include "tinyos.h"
 #include "kernel_sched.h"
@@ -47,10 +43,6 @@ void boot_tinyos_kernel()
 
   cpu_core_barrier_sync();
 
-#ifndef NVALGRIND
-  VALGRIND_PRINTF_BACKTRACE("TINYOS: Entering scheduler for core %d\n",cpu_core_id);
-#endif
-
   run_scheduler();
 
   if(cpu_core_id==0) {
@@ -65,7 +57,8 @@ void boot(uint ncores, uint nterm, Task boot_task, int argl, void* args)
   boot_rec.argl = argl;
   boot_rec.args = args;
 
-  vm_boot(boot_tinyos_kernel, ncores, nterm);
+  bios_init(nterm);
+  boot_tinyos_kernel();
 }
 
 

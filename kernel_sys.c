@@ -3,10 +3,6 @@
 #include "kernel_sys.h"
 #include "kernel_cc.h"
 
-#ifndef NVALGRIND
-#include <valgrind/valgrind.h>
-#endif
-
 /*
 	Define all the syscalls 
  */

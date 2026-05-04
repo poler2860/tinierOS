@@ -13,21 +13,21 @@
   process access.
 
   @{
-*/ 
+*/
 
-#include "tinyos.h"
 #include "kernel_sched.h"
+#include "tinyos.h"
 
 /**
   @brief PID state
 
-  A PID can be either free (no process is using it), ALIVE (some running process is
-  using it), or ZOMBIE (a zombie process is using it).
+  A PID can be either free (no process is using it), ALIVE (some running process
+  is using it), or ZOMBIE (a zombie process is using it).
   */
 typedef enum pid_state_e {
-  FREE,   /**< @brief The PID is free and available */
-  ALIVE,  /**< @brief The PID is given to a process */
-  ZOMBIE  /**< @brief The PID is held by a zombie */
+  FREE,  /**< @brief The PID is free and available */
+  ALIVE, /**< @brief The PID is given to a process */
+  ZOMBIE /**< @brief The PID is held by a zombie */
 } pid_state;
 
 /**
@@ -36,32 +36,34 @@ typedef enum pid_state_e {
   This structure holds all information pertaining to a process.
  */
 typedef struct process_control_block {
-  pid_state  pstate;      /**< @brief The pid state for this PCB */
+  pid_state pstate; /**< @brief The pid state for this PCB */
 
-  PCB* parent;            /**< @brief Parent's pcb. */
-  int exitval;            /**< @brief The exit value of the process */
+  PCB *parent; /**< @brief Parent's pcb. */
+  int exitval; /**< @brief The exit value of the process */
 
-  TCB* main_thread;       /**< @brief The main thread */
-  Task main_task;         /**< @brief The main thread's function */
-  int argl;               /**< @brief The main thread's argument length */
-  void* args;             /**< @brief The main thread's argument string */
+  TCB *main_thread; /**< @brief The main thread */
+  Task main_task;   /**< @brief The main thread's function */
+  int argl;         /**< @brief The main thread's argument length */
+  void *args;       /**< @brief The main thread's argument string */
 
-  rlnode children_list;   /**< @brief List of children */
-  rlnode exited_list;     /**< @brief List of exited children */
+  rlnode children_list; /**< @brief List of children */
+  rlnode exited_list;   /**< @brief List of exited children */
 
-  rlnode children_node;   /**< @brief Intrusive node for @c children_list */
-  rlnode exited_node;     /**< @brief Intrusive node for @c exited_list */
+  rlnode children_node; /**< @brief Intrusive node for @c children_list */
+  rlnode exited_node;   /**< @brief Intrusive node for @c exited_list */
 
-  CondVar child_exit;     /**< @brief Condition variable for @c WaitChild. 
+  CondVar child_exit; /**< @brief Condition variable for @c WaitChild.
 
-                             This condition variable is  broadcast each time a child
-                             process terminates. It is used in the implementation of
-                             @c WaitChild() */
+                         This condition variable is  broadcast each time a child
+                         process terminates. It is used in the implementation of
+                         @c WaitChild() */
 
-  FCB* FIDT[MAX_FILEID];  /**< @brief The fileid table of the process */
+  FCB *FIDT[MAX_FILEID]; /**< @brief The fileid table of the process */
+
+  rlnode ptcb_list; /** @brief List of PTCBs */
+  int thread_count; /** @brief Number of Threads in PCB */
 
 } PCB;
-
 
 /**
   @brief Initialize the process table.
@@ -74,27 +76,52 @@ void initialize_processes();
 /**
   @brief Get the PCB for a PID.
 
-  This function will return a pointer to the PCB of 
+  This function will return a pointer to the PCB of
   the process with a given PID. If the PID does not
   correspond to a process, the function returns @c NULL.
 
-  @param pid the pid of the process 
+  @param pid the pid of the process
   @returns A pointer to the PCB of the process, or NULL.
 */
-PCB* get_pcb(Pid_t pid);
+PCB *get_pcb(Pid_t pid);
 
 /**
   @brief Get the PID of a PCB.
 
-  This function will return the PID of the process 
+  This function will return the PID of the process
   whose PCB is pointed at by @c pcb. If the pcb does not
   correspond to a process, the function returns @c NOPROC.
 
-  @param pcb the pcb of the process 
+  @param pcb the pcb of the process
   @returns the PID of the process, or NOPROC.
 */
-Pid_t get_pid(PCB* pcb);
+Pid_t get_pid(PCB *pcb);
 
 /** @} */
+/**
+  @brief The proccess info control block struct.
+*/
+typedef struct procinfo_cb {
+  procinfo info;
+  Pid_t cursor;
+} procinfo_cb;
+
+/**
+  @brief Function to close the procinfo.
+*/
+int procinfo_close(void *procinfo_cb);
+
+/**
+  @brief Function to read for the procinfo.
+*/
+int procinfo_read(void *pi, char *buf, unsigned int size);
+
+/**
+  @brief Function of write for procinfo.
+
+  Since we don't make use of the write function
+  this will return -1;
+*/
+int procinfo_write();
 
 #endif

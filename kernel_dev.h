@@ -95,7 +95,6 @@ typedef struct file_operations {
 } file_ops;
 
 
-
 /**
   @brief The device type.
 	
