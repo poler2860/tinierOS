@@ -1,12 +1,12 @@
 # TinierOS Bare-Metal Makefile
+ARCH     = avr
+MCU      = atmega328p
+F_CPU    = 16000000UL
+CC       = avr-gcc
+AS       = avr-gcc -x assembler-with-cpp
+LD       = avr-gcc
+OBJCOPY  = avr-objcopy
 
-# Target architecture
-ARCH ?= x86_64
-
-# Toolchain
-CC = gcc
-AS = as
-LD = ld
 
 # Directories
 BUILD_DIR = build
@@ -15,30 +15,36 @@ INC_DIR = include
 
 # Compilation flags
 INCLUDE_DIRS = -I$(INC_DIR) -I$(INC_DIR)/kernel -I$(INC_DIR)/arch/$(ARCH) -I$(INC_DIR)/lib
-BASICFLAGS = -std=c11 -fno-builtin -ffreestanding -nostdlib -Wall -Wextra -fno-stack-protector
-DEBUGFLAGS = -g3
-CFLAGS = $(BASICFLAGS) $(DEBUGFLAGS) $(INCLUDE_DIRS)
+CFLAGS = -mmcu=$(MCU) -DF_CPU=$(F_CPU) \
+	-Os -g3 -std=c11 \
+    -ffreestanding -fno-builtin -nostdlib \
+    -fno-stack-protector -Wall -Wextra \
+    $(INCLUDE_DIRS)
 
 # Linker flags
-LDFLAGS = -nostdlib
+LDFLAGS  = -mmcu=$(MCU) -nostdlib -T linker/atmega328p.ld
 
 # Source files
 KERNEL_SRC = $(wildcard $(SRC_DIR)/kernel/*.c)
 ARCH_SRC = $(wildcard $(SRC_DIR)/arch/$(ARCH)/*.c)
 LIB_SRC = $(wildcard $(SRC_DIR)/lib/*.c)
-AS_SRC = $(wildcard $(SRC_DIR)/arch/$(ARCH)/*.s)
+AS_SRC = $(wildcard $(SRC_DIR)/arch/$(ARCH)/*.S)
 
 # Object files (placed in BUILD_DIR mirroring SRC_DIR structure)
 OBJ = $(KERNEL_SRC:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) \
       $(ARCH_SRC:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) \
       $(LIB_SRC:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) \
-      $(AS_SRC:$(SRC_DIR)/%.s=$(BUILD_DIR)/%.o)
+      $(AS_SRC:$(SRC_DIR)/%.S=$(BUILD_DIR)/%.o)
 
 .PHONY: all clean
 
-all: $(BUILD_DIR)/kernel.bin
+all: $(BUILD_DIR)/kernel.hex
 
-$(BUILD_DIR)/kernel.bin: $(OBJ)
+$(BUILD_DIR)/kernel.hex: $(BUILD_DIR)/kernel.elf
+	@echo "OBJCOPY $@"
+	@$(OBJCOPY) -O ihex -R .eeprom $< $@
+
+$(BUILD_DIR)/kernel.elf: $(OBJ)
 	@echo "LD $@"
 	@$(LD) $(LDFLAGS) -o $@ $^
 
@@ -49,10 +55,10 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Rule for Assembly files
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.s
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.S
 	@mkdir -p $(dir $@)
 	@echo "AS $<"
-	@$(AS) $< -o $@
+	@$(AS) $(CFLAGS) -c $< -o $@
 
 clean:
 	@echo "Cleaning build directory..."
