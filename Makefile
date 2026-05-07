@@ -22,7 +22,7 @@ CFLAGS = -mmcu=$(MCU) -DF_CPU=$(F_CPU) \
     $(INCLUDE_DIRS)
 
 # Linker flags
-LDFLAGS  = -mmcu=$(MCU) -nostdlib -T linker/atmega328p.ld
+LDFLAGS  = -mmcu=$(MCU) -nostdlib -T linker/atmega328p.ld -lgcc
 
 # Source files
 KERNEL_SRC = $(wildcard $(SRC_DIR)/kernel/*.c)
@@ -36,7 +36,7 @@ OBJ = $(KERNEL_SRC:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) \
       $(LIB_SRC:$(SRC_DIR)/%.c=$(BUILD_DIR)/%.o) \
       $(AS_SRC:$(SRC_DIR)/%.S=$(BUILD_DIR)/%.o)
 
-.PHONY: all clean
+.PHONY: all clean size flash
 
 all: $(BUILD_DIR)/kernel.hex
 
@@ -46,7 +46,7 @@ $(BUILD_DIR)/kernel.hex: $(BUILD_DIR)/kernel.elf
 
 $(BUILD_DIR)/kernel.elf: $(OBJ)
 	@echo "LD $@"
-	@$(LD) $(LDFLAGS) -o $@ $^
+	@$(CC) $(LDFLAGS) -o $@ $^
 
 # Rule for C files
 $(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
@@ -63,3 +63,12 @@ $(BUILD_DIR)/%.o: $(SRC_DIR)/%.S
 clean:
 	@echo "Cleaning build directory..."
 	@rm -rf $(BUILD_DIR)
+
+# Show Flash/SRAM usage broken down by section
+size: $(BUILD_DIR)/kernel.elf
+	avr-size --format=avr --mcu=$(MCU) $<
+
+# Flash to the board via UART bootloader (Uno R3 default)
+flash: $(BUILD_DIR)/kernel.hex
+	avrdude -p $(MCU) -c avrisp -P /dev/ttyACM0 -b 19200 \
+	        -U flash:w:$<:i

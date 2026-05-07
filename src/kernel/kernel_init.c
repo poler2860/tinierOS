@@ -1,68 +1,64 @@
+#include "io.h"
+#include <stdint.h>
 
-#include "bios.h"
-#include "tinyos.h"
+#define PB5 5
 #include "kernel_sched.h"
 #include "kernel_proc.h"
+#include "kernel_sys.h"
 #include "kernel_dev.h"
 #include "kernel_streams.h"
+#include "cpu.h"
+#include "tinyos.h"
+
+// !NOTE: for test use
+static void delay(volatile uint32_t count) {
+    while (count--) {
+        __asm__ __volatile__ ("nop");
+    }
+}
+
+static int test_process(int argl, void* args) {
+    (void)argl; (void)args;
+    Fid_t fd = OpenTerminal(0);
+    const char* msg = "Hello from tinierOS!\r\n";
+    
+    while (1) {
+        PORTB |= (1 << PB5);
+        Write(fd, msg, 22);
+        delay(4000000); /* Approx 1 second */
+        PORTB &= ~(1 << PB5);
+        delay(4000000); /* Approx 1 second */
+    }
+    return 0;
+}
 
 
+int main(void) {
+    /* Initialize Hardware */
+    DDRB |= (1 << PB5);   /* set bit 5 = output direction */
+    PORTB &= ~(1 << PB5); /* LED OFF */
 
+    /* Double flash heartbeat to signal boot completion */
+    for (int i=0; i<4; i++) {
+        PORTB ^= (1 << PB5);
+        delay(100000);
+    }
+    PORTB &= ~(1 << PB5);
 
-/*
- *
- * Initialization code
- *
- */
+    bios_init(0);
 
-
-/* Parameters from the 'boot' call are passed to boot_tinyos()
-   via static variables. */
-static struct {
-  Task init_task;
-  int argl;
-  void* args;
-} boot_rec;
-
-
-/* Per-core boot function for tinyos */
-void boot_tinyos_kernel()
-{
-
-  if(cpu_core_id==0) {
-    /* Initialize the kenrel data structures */
-    initialize_processes();
-    initialize_devices();
-    initialize_files();
+    /* Initialize Kernel */
     initialize_scheduler();
+    initialize_processes();
+    initialize_files();
+    initialize_devices();
 
-    /* The boot task is executed normally! */
-    if(Exec(boot_rec.init_task, boot_rec.argl, boot_rec.args)!=1)
-      FATAL("The init process does not have PID==1");
-  }
+    /* Start the first process */
+    sys_Exec(test_process, 0, NULL);
 
-  cpu_core_barrier_sync();
+    /* Start Scheduler (runs idle thread) */
+    /* Note: run_scheduler will call preempt_on when ready */
+    run_scheduler();
 
-  run_scheduler();
-
-  if(cpu_core_id==0) {
-    /* Here, we could add cleanup after the scheduler has ended. */    
-  }
+    return 0;
 }
-
-
-void boot(uint ncores, uint nterm, Task boot_task, int argl, void* args)
-{
-  boot_rec.init_task = boot_task;
-  boot_rec.argl = argl;
-  boot_rec.args = args;
-
-  bios_init(nterm);
-  boot_tinyos_kernel();
-}
-
-
-
-
-
-

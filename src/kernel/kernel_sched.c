@@ -39,41 +39,10 @@ TCB *cur_thread() {
   return cur;
 }
 
-/*
-   The thread layout.
-  --------------------
-
-  On the x86 (Pentium) architecture, the stack grows upward. Therefore, we
-  can allocate the TCB at the top of the memory block used as the stack.
-
-  +-------------+
-  |   TCB       |
-  +-------------+
-  |             |
-  |    stack    |
-  |             |
-  |      ^      |
-  |      |      |
-  +-------------+
-  | first frame |
-  +-------------+
-
-  Advantages: (a) unified memory area for stack and TCB (b) stack overrun will
-  crash own thread, before it affects other threads (which may make debugging
-  easier).
-
-  Disadvantages: The stack cannot grow unless we move the whole TCB. Of course,
-  we do not support stack growth anyway!
- */
-
-/*
-  A counter for active threads. By "active", we mean 'existing',
-  with the exception of idle threads (they don't count).
- */
 volatile unsigned int active_threads = 0;
 Mutex active_threads_spinlock = MUTEX_INIT;
 
-#define SYSTEM_PAGE_SIZE (1 << 12)
+#define SYSTEM_PAGE_SIZE (1)
 
 /* The memory allocated for the TCB must be a multiple of SYSTEM_PAGE_SIZE */
 #define THREAD_TCB_SIZE                                                        \
@@ -81,18 +50,30 @@ Mutex active_threads_spinlock = MUTEX_INIT;
 
 #define THREAD_SIZE (THREAD_TCB_SIZE + THREAD_STACK_SIZE)
 
-void free_thread(void *ptr, size_t size) { 
+/* Static thread pool */
+static TCB thread_pool[MAX_THREADS];
+static uint8_t thread_stacks[MAX_THREADS][THREAD_STACK_SIZE];
+static uint8_t thread_used[MAX_THREADS];
+
+void free_thread(void *ptr, size_t size) {
   (void)size;
-  free(ptr); 
+  for (int i = 0; i < MAX_THREADS; i++) {
+    if (&thread_pool[i] == ptr) {
+      thread_used[i] = 0;
+      return;
+    }
+  }
 }
 
 void *allocate_thread(size_t size) {
-  void *ptr = aligned_alloc(SYSTEM_PAGE_SIZE, size);
-  if (ptr == NULL) {
-      /* In a real kernel, we would handle out-of-memory differently */
-      return NULL;
+  (void)size;
+  for (int i = 0; i < MAX_THREADS; i++) {
+    if (!thread_used[i]) {
+      thread_used[i] = 1;
+      return &thread_pool[i];
+    }
   }
-  return ptr;
+  return NULL;
 }
 
 /*
@@ -114,8 +95,19 @@ static void thread_start() {
 */
 
 TCB *spawn_thread(PCB *pcb, void (*func)()) {
-  /* The allocated thread size must be a multiple of page size */
-  TCB *tcb = (TCB *)allocate_thread(THREAD_SIZE);
+  /* Find an available slot */
+  int slot = -1;
+  for (int i = 0; i < MAX_THREADS; i++) {
+    if (!thread_used[i]) {
+      slot = i;
+      thread_used[i] = 1;
+      break;
+    }
+  }
+
+  if (slot == -1) return NULL;
+
+  TCB *tcb = &thread_pool[slot];
 
   /* Set the owner */
   tcb->owner_pcb = pcb;
@@ -138,7 +130,7 @@ TCB *spawn_thread(PCB *pcb, void (*func)()) {
   tcb->curr_cause = SCHED_IDLE;
 
   /* Compute the stack segment address and size */
-  void *sp = ((void *)tcb) + THREAD_TCB_SIZE;
+  void *sp = &thread_stacks[slot][0];
 
   /* Init the context */
   cpu_initialize_context(&tcb->context, sp, THREAD_STACK_SIZE, thread_start);
@@ -154,9 +146,23 @@ TCB *spawn_thread(PCB *pcb, void (*func)()) {
 /**
   Initialize and return a new PTCB
  */
+static PTCB ptcb_pool[MAX_THREADS];
+static uint8_t ptcb_used[MAX_THREADS];
+
 void create_ptcb(TCB *cur_tcb, Task task, int argl, void *args) {
-  // Create a new pthread
-  PTCB *ptcb = (PTCB *)malloc(sizeof(PTCB));
+  /* Find an available slot */
+  int slot = -1;
+  for (int i = 0; i < MAX_THREADS; i++) {
+    if (!ptcb_used[i]) {
+      slot = i;
+      ptcb_used[i] = 1;
+      break;
+    }
+  }
+
+  if (slot == -1) return;
+
+  PTCB *ptcb = &ptcb_pool[slot];
 
   ptcb->task = task;
   ptcb->argl = argl;

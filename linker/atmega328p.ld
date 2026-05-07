@@ -25,6 +25,7 @@ SECTIONS
     {
         __data_start_sram = .;  /* export symbol */
         *(.data*)
+        *(.rodata*)             /* string literals and const globals moved to SRAM */
         . = ALIGN(2);
 
         __data_end_sram = .;  /* export symbol */

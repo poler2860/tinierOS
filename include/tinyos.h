@@ -42,14 +42,14 @@ typedef unsigned long timeout_t;
 #define NOPROC (-1)
 
 /** @brief The maximum number of processes */
-#define MAX_PROC 65536
+#define MAX_PROC 2
 
 /** @brief The type of a file ID. */
 typedef int Fid_t;  
 
 /** @brief The maximum number of open files per process. 
    Only values 0 to MAX_FILEID-1 are legal for file descriptors. */
-#define MAX_FILEID 16
+#define MAX_FILEID 4
 
 /** @brief The invalid file id. */
 #define NOFILE  (-1)

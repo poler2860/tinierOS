@@ -20,9 +20,9 @@
   @{
 */
 
-#include "bios.h"
 #include "tinyos.h"
 #include "util.h"
+#include "cpu.h"
 
 /*****************************
  *
@@ -158,9 +158,9 @@ typedef struct thread_control_block {
 
 /** @brief Thread stack size.
 
-  The default thread stack size in TinyOS is 128 kbytes.
+  The default thread stack size in TinyOS is 256 bytes for AVR.
  */
-#define THREAD_STACK_SIZE (128 * 1024)
+#define THREAD_STACK_SIZE (256)
 
 /************************
  *
@@ -211,6 +211,7 @@ TCB *cur_thread();
 
 #define SCHED_QUEUES 10
 #define YIELD_RUNS 1800
+#define MAX_THREADS 2
 
 /**
   @brief A timeout constant, denoting no timeout for sleep.
